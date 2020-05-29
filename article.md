@@ -29,8 +29,8 @@ Let's say a telco company would like to make use of its billing data to make adv
 
 *  client id (presumably his phone number)
 *  event timestamp
-*  client's pre-paid card balance before the event
-*  client's pre-paid card balance after the event
+*  client's pre-paid balance before the event
+*  client's pre-paid balance after the event
 
 The company currently sends alert information to those customers, whose balance approaches 0\$. The threshold under which alarm will trigger is set at 10\$. The company would like to know customers' reactions to the alarm trigger. It estimates that if the customer tops up his account within one hour from the alarm trigger, this is the reaction sparked by that alarm.
 
@@ -229,7 +229,7 @@ Currently, Flink implementation handles simple time constraints with the use of 
 ### Unruly case
 In the case we implemented for our client, the requirement was to also detect the absence of the event. And that appeared to be impossible using MATCH\_RECOGNIZE clause.
 
-Let's say that our company, in addition to "top-up within one hour" events would like to track those customers who do not top-up in the appointed time. Therefore, after an hour without a top-up, we would like to generate an appropriate event. Unfortunately, there is no capability in the current SQL standard nor in Flink implementation to define how to handle such "absence of the top-up event in one hour" cases.
+Let's say that our company, in addition to "top-up within one hour" events would like to track those customers who do not top-up in the appointed time. Therefore, after an hour without a top-up, we would like to generate an appropriate event. Unfortunately, there is no capability in the current SQL standard nor in Flink SQL implementation to define how to handle such "absence of the top-up event in one hour" cases.
 
 A way out, which seems most in line with MATCH\_RECOGNIZE event handling, would be to implement the pattern using FlinkCEP, which in addition to `within` functionality provides `processTimedOutMatch` function, which would allow passing timed out events to side output. 
 
@@ -269,6 +269,13 @@ A way out, which seems most in line with MATCH\_RECOGNIZE event handling, would 
 
 
 ## Conclusions
-Flink provides a variety of ways of handling complex event processing. Each way has its merit, with `FlinkCEP` being the more versatile approach, `Flink SQL MATCH_RECOGNIZE` the more verbose, with `ProcessFunction` as an everything-goes backup for highly non-standard transformations. What is best will change according to the considered use case, so we want to be aware of the possibilities that Flink has to offer.
+Flink provides a variety of ways of handling complex event processing. Each way has its merit:
+
+*  `FlinkCEP` is the more versatile approach
+*  `Flink SQL MATCH_RECOGNIZE` is the more expressive one
+*  `ProcessFunction` is an everything-goes backup for highly non-standard transformations. 
+
+Which one is the best changes according to the specific use case. We hope that someday most, if not all, of complex pattern matching will be possible in a higher-level language like Flink SQL as this will enable analysts to define business rules themselves, without low-level coding, resulting in increased productivity.
+
 
 Finally, I'd like to thank Krzysztof Zarzycki and a whole [GetInData](https://getindata.com) team for their invaluable support - none of it would have been possible without their help :)
