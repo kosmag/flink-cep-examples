@@ -12,7 +12,6 @@ import org.apache.flink.table.api.scala.StreamTableEnvironment
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.Table
-import org.apache.flink.types.Row
 
 import scala.reflect.io.File
 

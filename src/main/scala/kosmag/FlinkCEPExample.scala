@@ -12,16 +12,13 @@ import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks
 import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment, _}
 import org.apache.flink.streaming.api.watermark.Watermark
-import org.apache.flink.table.api.Table
 import org.apache.flink.table.api.scala.{StreamTableEnvironment, _}
-import org.apache.flink.types.Row
 import org.apache.flink.util.Collector
 import java.util
 
 import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator
 import org.apache.flink.streaming.api.windowing.time.Time
-import scala.io.Source
 
 import scala.reflect.io.File
 

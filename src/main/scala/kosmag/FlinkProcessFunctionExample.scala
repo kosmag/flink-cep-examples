@@ -2,27 +2,17 @@ package kosmag
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
-import java.util
 
 import kosmag.events.{AlertReactionEvent, BillingEvent}
 import org.apache.flink.api.common.state.{ValueState, ValueStateDescriptor}
 import org.apache.flink.api.java.tuple.Tuple
-import org.apache.flink.cep.functions.PatternProcessFunction
-import org.apache.flink.cep.nfa.aftermatch.AfterMatchSkipStrategy
-import org.apache.flink.cep.pattern.Pattern
-import org.apache.flink.cep.pattern.conditions.SimpleCondition
-import org.apache.flink.cep.{CEP, PatternStream}
 import org.apache.flink.streaming.api.TimeCharacteristic
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator
 import org.apache.flink.streaming.api.functions.{AssignerWithPeriodicWatermarks, KeyedProcessFunction}
 import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment, _}
 import org.apache.flink.streaming.api.watermark.Watermark
-import org.apache.flink.streaming.api.windowing.time.Time
-import org.apache.flink.table.api.scala.StreamTableEnvironment
 import org.apache.flink.util.Collector
 import org.slf4j.LoggerFactory
 
-import scala.collection.mutable
 import scala.io.Source
 import scala.reflect.io.File
 
