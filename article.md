@@ -3,15 +3,15 @@
 ### Kosma Grochowski
 My goal is to create a comprehensive review of available options when dealing with Complex Event Processing using Apache Flink. We will be building a simple proof-of-concept solution for an example use case.
 
-The codebase for examples is provided at the following link -> TODO
+The codebase for examples is provided at [GitHub](https://github.com/kosmag/flink-cep-examples).
 ## Overview
 ### Complex Event Processing (CEP)
 The term "complex event processing" defines methods of analyzing pattern relationships between streamed events. When done in real-time, it can provide advanced insights further into the data processing system.
 
-Among many industries in which complex event processing has found widespread use, there is the financial sector, IoT and real-time marketing
+There are numerous industries in which complex event processing has found widespread use, financial sector, IoT and Telco to name a few. Those uses include real-time marketing, fraud and anomalies detection and a variety of other business automation cases. 
 
 ### Flink
-Flink is a promising framework to combat the subject of complex event processing. It supports low-latency stream processing. I recommend [Flink docs](https://ci.apache.org/projects/flink/flink-docs-release-1.10/) as the best way to learn more about the project - they're very well written and cover both high-level concepts and concrete API calls.
+Flink is a promising framework to combat the subject of complex event processing. It supports low-latency stream processing. I recommend [Flink docs](https://ci.apache.org/projects/flink/flink-docs-stable/) as the best way to learn more about the project - they're very well written and cover both high-level concepts and concrete API calls.
 
 Complex events may be processed in Flink using several different approaches, three of which I'll cover moving forwards:
 
@@ -22,23 +22,23 @@ Complex events may be processed in Flink using several different approaches, thr
 I'll be using Scala as a programming language of choice.
 
 ## Use case
-I believe that the best way to learn the strengths and weaknesses of each approach is to show them in action. Therefore, I created an example use case inspired by real business needs.
+I believe that the best way to learn the strengths and weaknesses of each approach is to show them in action. Therefore, I created an example use case inspired by the real business needs of one of our Telco clients. We had to solve this case on the scale of hundreds of thousands of events per second and over ten million unique subscribers.
 ### Description
-Let's say a telco company would like to make use of its billing data to make advertising decisions to its customers. The billing data structure would be as follows:
+Let's say a telco company would like to make use of its billing data to make advertising decisions to its pre-paid customers. The billing data structure would be as follows:
 
 
 *  client id (presumably his phone number)
 *  event timestamp
-*  client balance before the event
-*  client balance after the event
+*  client's pre-paid card balance before the event
+*  client's pre-paid card balance after the event
 
-The company currently sends alert information to those customers, whose balance approaches 0\$. The threshold under which alarm will trigger is set at 10\$. The company would like to know customers' reactions to the alarm trigger. It estimates that if the customer tops up his account within 1 hour from the alarm trigger, this is the reaction sparked by that alarm.
+The company currently sends alert information to those customers, whose balance approaches 0\$. The threshold under which alarm will trigger is set at 10\$. The company would like to know customers' reactions to the alarm trigger. It estimates that if the customer tops up his account within one hour from the alarm trigger, this is the reaction sparked by that alarm.
 
 Thus, the event pattern we would like to capture would look like this:
 
 * event with balance before value >= 10\$ and balance after value < 10\$ (alarm trigger)
 * zero or more events with balance after <= balance before (non-top-up actions)
-* event with balance after > balance before (top-up action), happening within 1 hour from the first event
+* event with balance after > balance before (top-up action), happening within one hour from the first event
 
 So, we can define input and output structures like this:
 
@@ -117,7 +117,7 @@ Stateful stream processing is the lowest level of abstraction provided in Flink 
         alarmTriggerDatetime.update("")
       }
     }
-  }
+  	}
 
 
 
@@ -158,7 +158,7 @@ FlinkCEP implementation is shown below:
     })
       .within(Time.hours(1))
     
-    val patternStream: PatternStream[BillingEvent] = CEP.pattern(billings.javaStream, pattern)
+    val patternStream: PatternStream[BillingEvent] = CEP.pattern(keyedBillings.javaStream, pattern)
     
     val result: SingleOutputStreamOperator[AlertReactionEvent] = patternStream.process(
       new PatternProcessFunction[BillingEvent, AlertReactionEvent]() {
@@ -210,7 +210,7 @@ val result: Table = tableEnv.sqlQuery(
 
 ```
 
-SQL option provides arguably the best clarity and brevity of them all. Moreover, this approach allows for better mutual understanding between data engineers and data analytics, as SQL is commonly used in both environments.
+SQL option provides arguably the best clarity and brevity of them all. Moreover, this approach allows for better mutual understanding between data engineers and data analysts, as SQL is commonly used by both groups.
 
 ## It's not all roses, though
 
@@ -227,9 +227,48 @@ Currently, Flink implementation handles simple time constraints with the use of 
 
 
 ### Unruly case
-Let's say that our company, in addition to "top-up within 1 hour" events would like to track those customers who do not top-up in the appointed time. Therefore, after 1 hour without top-up we would like to generate an appropriate event. I was not able to implement such behavior in the current standard.
+In the case we implemented for our client, the requirement was to also detect the absence of the event. And that appeared to be impossible using MATCH\_RECOGNIZE clause.
 
-A way out for such cases, which seems most in line with MATCH\_RECOGNIZE event handling, would be to implement the pattern using FlinkCEP, which in addition to `within` functionality provides `processTimedOutMatch` function, which would allow passing timed out events to side output.
+Let's say that our company, in addition to "top-up within one hour" events would like to track those customers who do not top-up in the appointed time. Therefore, after an hour without a top-up, we would like to generate an appropriate event. Unfortunately, there is no capability in the current SQL standard nor in Flink implementation to define how to handle such "absence of the top-up event in one hour" cases.
+
+A way out, which seems most in line with MATCH\_RECOGNIZE event handling, would be to implement the pattern using FlinkCEP, which in addition to `within` functionality provides `processTimedOutMatch` function, which would allow passing timed out events to side output. 
+
+    val patternStream: PatternStream[BillingEvent] = CEP.pattern(keyedBillings.javaStream, pattern)
+
+    val sideOutputTag = OutputTag[AlertReactionEvent]("absence-of-topup-event")
+    val result: SingleOutputStreamOperator[AlertReactionEvent] = patternStream.process(
+      new PatternProcessFunction[BillingEvent, AlertReactionEvent]() with TimedOutPartialMatchHandler[BillingEvent] {
+        override def processMatch(
+                                   patternMatch: util.Map[String, util.List[BillingEvent]],
+                                   ctx: PatternProcessFunction.Context,
+                                   out: Collector[AlertReactionEvent]): Unit = {
+          out.collect(
+            AlertReactionEvent(
+              patternMatch.get("A").get(0).id,
+              patternMatch.get("A").get(0).datetime,
+              patternMatch.get("C").get(0).datetime
+            )
+          )
+        }
+
+        override def processTimedOutMatch(patternMatch: util.Map[String, util.List[BillingEvent]],
+                                          ctx: PatternProcessFunction.Context): Unit = {
+          ctx.output(
+            sideOutputTag,
+            AlertReactionEvent(
+              patternMatch.get("A").get(0).id,
+              patternMatch.get("A").get(0).datetime,
+              ""
+            )
+          )
+        }
+      })
+
+    result.getSideOutput(sideOutputTag).print()
+
+
 
 ## Conclusions
-Flink provides a variety of ways of handling complex event processing. Each way has its merit, with `FlinkCEP ` being the more versatile approach, `Flink SQL MATCH_RECOGNIZE` the more verbose, with `ProcessFunction` as an everything-goes backup for highly non-standard transformations. What is best will change according to the considered use case, so we want to be aware of the possibilities that Flink has to offer.
+Flink provides a variety of ways of handling complex event processing. Each way has its merit, with `FlinkCEP` being the more versatile approach, `Flink SQL MATCH_RECOGNIZE` the more verbose, with `ProcessFunction` as an everything-goes backup for highly non-standard transformations. What is best will change according to the considered use case, so we want to be aware of the possibilities that Flink has to offer.
+
+Finally, I'd like to thank Krzysztof Zarzycki and a whole [GetInData](https://getindata.com) team for their invaluable support - none of it would have been possible without their help :)
